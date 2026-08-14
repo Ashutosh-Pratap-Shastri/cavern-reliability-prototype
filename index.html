@@ -1,0 +1,541 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>KORVA-RBD · Cavern Reliability Prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --rock-900:#15171a;
+    --rock-800:#1c1f23;
+    --rock-700:#24282d;
+    --line:#33383f;
+    --bone:#e9e5da;
+    --bone-dim:#9aa0a6;
+    --sulfur:#e0b23a;      /* hydrogen-flame amber, signature accent */
+    --safe:#4fa98c;        /* stable / FoS>1 */
+    --danger:#d0563a;      /* failure / FoS<1 */
+    --mono: 'IBM Plex Mono', monospace;
+    --sans: 'IBM Plex Sans', sans-serif;
+    --disp: 'Space Grotesk', sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:var(--rock-900); color:var(--bone);
+    font-family:var(--sans); line-height:1.5;
+  }
+  header{
+    padding:28px clamp(16px,4vw,48px) 18px; border-bottom:1px solid var(--line);
+    display:flex; justify-content:space-between; align-items:flex-end; flex-wrap:wrap; gap:12px;
+  }
+  .brand{display:flex; flex-direction:column; gap:4px;}
+  .eyebrow{
+    font-family:var(--mono); font-size:11px; letter-spacing:.14em; text-transform:uppercase;
+    color:var(--sulfur);
+  }
+  h1{
+    font-family:var(--disp); font-weight:600; font-size:clamp(22px,3vw,30px); margin:0;
+    letter-spacing:-0.01em;
+  }
+  .sub{color:var(--bone-dim); font-size:13.5px; max-width:56ch;}
+  .status-pill{
+    font-family:var(--mono); font-size:11px; padding:6px 10px; border:1px solid var(--line);
+    border-radius:3px; color:var(--bone-dim); background:var(--rock-800);
+  }
+  main{
+    display:grid; grid-template-columns: 340px 1fr; gap:1px; background:var(--line);
+  }
+  @media (max-width:900px){ main{grid-template-columns:1fr;} }
+  section.panel{background:var(--rock-900); padding:22px clamp(16px,3vw,32px);}
+  .panel-title{
+    font-family:var(--mono); font-size:11px; letter-spacing:.12em; text-transform:uppercase;
+    color:var(--bone-dim); margin:0 0 16px; display:flex; align-items:center; gap:8px;
+  }
+  .panel-title::before{content:''; width:10px; height:1px; background:var(--sulfur);}
+
+  .field{margin-bottom:16px;}
+  .field-row{display:flex; justify-content:space-between; align-items:baseline; margin-bottom:5px;}
+  label{font-size:12.5px; color:var(--bone);}
+  .cov{font-family:var(--mono); font-size:11px; color:var(--bone-dim);}
+  .inputs-pair{display:flex; gap:8px;}
+  input[type=number]{
+    width:100%; background:var(--rock-800); border:1px solid var(--line); color:var(--bone);
+    font-family:var(--mono); font-size:13px; padding:8px 9px; border-radius:3px;
+  }
+  input[type=number]:focus{outline:none; border-color:var(--sulfur);}
+  input[type=range]{width:100%; accent-color:var(--sulfur);}
+  .unit{font-family:var(--mono); font-size:10.5px; color:var(--bone-dim); margin-top:3px;}
+  fieldset{border:none; padding:0; margin:0 0 22px;}
+  legend{
+    font-family:var(--mono); font-size:10.5px; text-transform:uppercase; letter-spacing:.1em;
+    color:var(--sulfur); padding:0 0 10px; border-bottom:1px solid var(--line); width:100%; margin-bottom:14px;
+  }
+  button#run{
+    width:100%; padding:13px; background:var(--sulfur); color:#1a1305; border:none;
+    font-family:var(--mono); font-weight:600; font-size:13px; letter-spacing:.04em;
+    text-transform:uppercase; border-radius:3px; cursor:pointer; transition:opacity .15s;
+  }
+  button#run:disabled{opacity:.55; cursor:wait;}
+  button#run:hover:not(:disabled){opacity:.9;}
+
+  .results-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:1px; background:var(--line); margin-bottom:22px; border:1px solid var(--line);}
+  .stat{background:var(--rock-800); padding:16px 14px;}
+  .stat .k{font-family:var(--mono); font-size:10px; text-transform:uppercase; letter-spacing:.1em; color:var(--bone-dim);}
+  .stat .v{font-family:var(--disp); font-size:26px; margin-top:6px;}
+  .stat .v.safe{color:var(--safe);} .stat .v.danger{color:var(--danger);}
+  .stat .sub2{font-family:var(--mono); font-size:10.5px; color:var(--bone-dim); margin-top:4px;}
+
+  .viz-row{display:grid; grid-template-columns: 1fr 1.4fr; gap:22px; margin-bottom:8px;}
+  @media (max-width:1150px){ .viz-row{grid-template-columns:1fr;} }
+  .viz-card{border:1px solid var(--line); border-radius:4px; padding:16px; background:var(--rock-800);}
+  .viz-card h3{margin:0 0 10px; font-family:var(--mono); font-size:11px; text-transform:uppercase; letter-spacing:.09em; color:var(--bone-dim); font-weight:500;}
+  svg text{font-family:var(--mono);}
+  canvas{width:100%; height:auto; display:block;}
+
+  .legend-row{display:flex; gap:16px; margin-top:10px; font-family:var(--mono); font-size:10.5px; color:var(--bone-dim);}
+  .legend-row span{display:inline-flex; align-items:center; gap:5px;}
+  .swatch{width:9px; height:9px; border-radius:2px; display:inline-block;}
+
+  .table-wrap{border:1px solid var(--line); border-radius:4px; overflow:hidden;}
+  table{width:100%; border-collapse:collapse; font-size:12.5px;}
+  th,td{padding:9px 12px; text-align:left; border-bottom:1px solid var(--line);}
+  th{font-family:var(--mono); font-size:10.5px; text-transform:uppercase; letter-spacing:.07em; color:var(--bone-dim); background:var(--rock-800);}
+  td.num{font-family:var(--mono); text-align:right;}
+  tr:last-child td{border-bottom:none;}
+
+  .disclaimer{
+    margin-top:26px; padding:14px 16px; border-left:2px solid var(--sulfur); background:var(--rock-800);
+    font-size:12px; color:var(--bone-dim); font-family:var(--sans);
+  }
+  footer{padding:20px clamp(16px,4vw,48px) 40px; font-family:var(--mono); font-size:11px; color:var(--bone-dim);}
+  footer a{color:var(--sulfur); text-decoration:none;}
+  .loading-note{font-family:var(--mono); font-size:11px; color:var(--bone-dim); margin-top:10px; min-height:14px;}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <span class="eyebrow">Rock Mechanics · Underground H₂ Storage</span>
+    <h1>Cavern Reliability Prototype</h1>
+    <div class="sub">Monte Carlo probability of failure for a lined rock cavern under cyclic internal gas pressure and anisotropic in-situ stress — built as a working sketch of a risk-based design tool.</div>
+  </div>
+  <div class="status-pill" id="pyodide-status">loading python runtime…</div>
+</header>
+
+<main>
+  <section class="panel">
+    <p class="panel-title">Input distributions</p>
+
+    <fieldset>
+      <legend>Geometry &amp; overburden</legend>
+      <div class="field">
+        <div class="field-row"><label for="H">Depth to crown, H</label><span class="cov">mean / COV%</span></div>
+        <div class="inputs-pair">
+          <input type="number" id="H" value="400" step="10">
+          <input type="number" id="H_cov" value="8" step="1">
+        </div>
+        <div class="unit">m</div>
+      </div>
+      <div class="field">
+        <div class="field-row"><label for="gamma">Rock unit weight, γ</label><span class="cov">mean / COV%</span></div>
+        <div class="inputs-pair">
+          <input type="number" id="gamma" value="27" step="0.5">
+          <input type="number" id="gamma_cov" value="3" step="1">
+        </div>
+        <div class="unit">kN/m³</div>
+      </div>
+      <div class="field">
+        <div class="field-row"><label for="k0">Stress ratio, k₀ = σh/σv</label><span class="cov">mean / COV%</span></div>
+        <div class="inputs-pair">
+          <input type="number" id="k0" value="1.4" step="0.1">
+          <input type="number" id="k0_cov" value="20" step="1">
+        </div>
+        <div class="unit">–</div>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Rock mass strength</legend>
+      <div class="field">
+        <div class="field-row"><label for="ucs">Intact UCS, σci</label><span class="cov">mean / COV%</span></div>
+        <div class="inputs-pair">
+          <input type="number" id="ucs" value="150" step="5">
+          <input type="number" id="ucs_cov" value="15" step="1">
+        </div>
+        <div class="unit">MPa (hard crystalline rock)</div>
+      </div>
+      <div class="field">
+        <div class="field-row"><label for="gsi">GSI</label><span class="cov">mean / COV%</span></div>
+        <div class="inputs-pair">
+          <input type="number" id="gsi" value="70" step="1">
+          <input type="number" id="gsi_cov" value="8" step="1">
+        </div>
+        <div class="unit">0–100</div>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Operating pressure</legend>
+      <div class="field">
+        <div class="field-row"><label for="pi">Max cyclic pressure, Pi</label><span class="cov">mean / COV%</span></div>
+        <div class="inputs-pair">
+          <input type="number" id="pi" value="12" step="0.5">
+          <input type="number" id="pi_cov" value="10" step="1">
+        </div>
+        <div class="unit">MPa (250–700 bar range → 25–70 MPa; default set moderate for demo)</div>
+      </div>
+      <div class="field">
+        <div class="field-row"><label for="freq">Required hydraulic-jacking factor, F</label><span class="cov">deterministic</span></div>
+        <input type="number" id="freq" value="1.3" step="0.05">
+        <div class="unit">min. principal stress / Pi</div>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Simulation</legend>
+      <div class="field">
+        <div class="field-row"><label for="nsamp">Samples, N</label><span class="cov"></span></div>
+        <input type="number" id="nsamp" value="20000" step="1000">
+      </div>
+    </fieldset>
+
+    <button id="run" disabled>loading runtime…</button>
+    <div class="loading-note" id="loading-note"></div>
+  </section>
+
+  <section class="panel">
+    <p class="panel-title">System reliability</p>
+    <div class="results-grid" id="stats-grid">
+      <div class="stat"><div class="k">P(f) — wall crushing</div><div class="v" id="pf1">—</div><div class="sub2" id="beta1">β = —</div></div>
+      <div class="stat"><div class="k">P(f) — hydraulic jacking</div><div class="v" id="pf2">—</div><div class="sub2" id="beta2">β = —</div></div>
+      <div class="stat"><div class="k">P(f) — system (union)</div><div class="v" id="pf3">—</div><div class="sub2" id="beta3">β = —</div></div>
+    </div>
+
+    <div class="viz-row">
+      <div class="viz-card">
+        <h3>Cavern cross-section — mean-case hoop stress</h3>
+        <svg id="section-svg" viewBox="0 0 300 300" width="100%"></svg>
+        <div class="legend-row">
+          <span><span class="swatch" style="background:var(--safe)"></span>within strength</span>
+          <span><span class="swatch" style="background:var(--danger)"></span>exceeds σcm or tension &gt; σt</span>
+        </div>
+      </div>
+      <div class="viz-card">
+        <h3>Distribution of governing factor of safety (min of both limit states)</h3>
+        <canvas id="hist-canvas" width="640" height="300"></canvas>
+        <div class="legend-row">
+          <span><span class="swatch" style="background:var(--safe)"></span>FoS ≥ 1</span>
+          <span><span class="swatch" style="background:var(--danger)"></span>FoS &lt; 1 (failure realization)</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Limit state</th><th>Formulation</th><th class="num">Mean FoS</th><th class="num">σ(FoS)</th></tr></thead>
+        <tbody id="table-body">
+          <tr><td colspan="4" style="color:var(--bone-dim); font-family:var(--mono); font-size:11.5px;">run analysis to populate</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="disclaimer">
+      Educational prototype, not a design tool. Hoop stress uses the closed-form Kirsch solution for a circular opening in a biaxial far-field stress with internal pressure; rock mass strength uses a Hoek–Brown-derived reduction of intact UCS by GSI. Hydraulic-jacking limit state uses the classical minimum-principal-stress cover criterion. Independent normal variates, no spatial correlation. Benchmark against numerical models (FEM/FDM/DEM) and site data before any design use — exactly the validation gap the KORVA project is built to close.
+    </div>
+  </section>
+</main>
+
+<footer>
+  built as a portfolio prototype for the Aalto University doctoral position in rock mechanics — underground hydrogen storage &amp; risk-based design (KORVA 2026–2030) · source intended for <a href="#">github.com/&lt;user&gt;/cavern-reliability-prototype</a>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/pyodide/v0.26.1/full/pyodide.js"></script>
+<script>
+const PY_ENGINE = `
+import numpy as np
+
+def inv_norm_cdf(p):
+    # Acklam's rational approximation of the inverse standard normal CDF
+    p = np.clip(p, 1e-12, 1 - 1e-12)
+    a = [-3.969683028665376e+01, 2.209460984245205e+02, -2.759285104469687e+02,
+         1.383577518672690e+02, -3.066479806614716e+01, 2.506628277459239e+00]
+    b = [-5.447609879822406e+01, 1.615858368580409e+02, -1.556989798598866e+02,
+         6.680131188771972e+01, -1.328068155288572e+01]
+    c = [-7.784894002430293e-03, -3.223964580411365e-01, -2.400758277161838e+00,
+         -2.549732539343734e+00, 4.374664141464968e+00, 2.938163982698783e+00]
+    d = [7.784695709041462e-03, 3.224671290700398e-01, 2.445134137142996e+00,
+         3.754408661907416e+00]
+    plow = 0.02425
+    phigh = 1 - plow
+    out = np.empty_like(p)
+    low = p < plow
+    high = p > phigh
+    mid = ~(low | high)
+    ql = np.sqrt(-2*np.log(p[low]))
+    out[low] = (((((c[0]*ql+c[1])*ql+c[2])*ql+c[3])*ql+c[4])*ql+c[5]) / \
+               ((((d[0]*ql+d[1])*ql+d[2])*ql+d[3])*ql+1)
+    qh = np.sqrt(-2*np.log(1-p[high]))
+    out[high] = -(((((c[0]*qh+c[1])*qh+c[2])*qh+c[3])*qh+c[4])*qh+c[5]) / \
+                ((((d[0]*qh+d[1])*qh+d[2])*qh+d[3])*qh+1)
+    qm = p[mid] - 0.5
+    r = qm*qm
+    out[mid] = (((((a[0]*r+a[1])*r+a[2])*r+a[3])*r+a[4])*r+a[5])*qm / \
+               (((((b[0]*r+b[1])*r+b[2])*r+b[3])*r+b[4])*r+1)
+    return out
+
+def norm_sample(rng, mean, cov_pct, n):
+    sd = mean * (cov_pct/100.0)
+    x = rng.normal(mean, sd, n)
+    return np.clip(x, 1e-6, None)
+
+def run(params):
+    rng = np.random.default_rng(42)
+    n = int(params['nsamp'])
+
+    H   = norm_sample(rng, params['H'],   params['H_cov'],   n)
+    gam = norm_sample(rng, params['gamma'],params['gamma_cov'],n)
+    k0  = norm_sample(rng, params['k0'],  params['k0_cov'],  n)
+    ucs = norm_sample(rng, params['ucs'], params['ucs_cov'], n)
+    gsi = np.clip(norm_sample(rng, params['gsi'], params['gsi_cov'], n), 10, 95)
+    pi  = norm_sample(rng, params['pi'],  params['pi_cov'],  n)
+    F   = params['freq']
+
+    sv = gam * H / 1000.0          # MPa
+    sh = k0 * sv                   # MPa
+
+    s_hb = np.exp((gsi - 100) / 9.0)     # Hoek-Brown 's' parameter (disturbance D=0)
+    sigma_cm = ucs * np.sqrt(s_hb)       # rock mass compressive strength, MPa
+    sigma_t  = 0.05 * ucs                # crude tensile strength estimate
+
+    # Kirsch hoop stress at cavern boundary, compression positive
+    sigma_crown    = 3*sh - sv - pi
+    sigma_sidewall = 3*sv - sh - pi
+    sigma_max = np.maximum(sigma_crown, sigma_sidewall)
+    sigma_min = np.minimum(sigma_crown, sigma_sidewall)
+
+    # Limit state 1: compressive/shear crushing at the more stressed wall point,
+    # OR tensile failure at the point in tension
+    fos_compressive = sigma_cm / np.maximum(sigma_max, 1e-6)
+    fos_tensile = np.where(sigma_min < 0, sigma_t / np.maximum(-sigma_min, 1e-6), np.inf)
+    fos1 = np.minimum(fos_compressive, fos_tensile)
+    g1 = fos1 - 1.0
+
+    # Limit state 2: hydraulic jacking / gas containment — minimum far-field
+    # principal stress must exceed pressure by factor F
+    fos2 = np.minimum(sv, sh) / (F * pi)
+    g2 = fos2 - 1.0
+
+    pf1 = float(np.mean(g1 < 0))
+    pf2 = float(np.mean(g2 < 0))
+    pf3 = float(np.mean((g1 < 0) | (g2 < 0)))
+
+    def beta_of(pf):
+        if pf <= 0: return 99.0
+        if pf >= 1: return -99.0
+        return float(-inv_norm_cdf(np.array([pf]))[0])
+
+    fos_sys = np.minimum(fos1, fos2)
+    fos_sys_clipped = np.clip(fos_sys, 0, np.percentile(fos_sys, 99.5))
+    counts, edges = np.histogram(fos_sys_clipped, bins=40)
+
+    return {
+        'pf1': pf1, 'pf2': pf2, 'pf3': pf3,
+        'beta1': beta_of(pf1), 'beta2': beta_of(pf2), 'beta3': beta_of(pf3),
+        'fos1_mean': float(np.mean(fos1[np.isfinite(fos1)])), 'fos1_sd': float(np.std(fos1[np.isfinite(fos1)])),
+        'fos2_mean': float(np.mean(fos2)), 'fos2_sd': float(np.std(fos2)),
+        'hist_counts': counts.tolist(), 'hist_edges': edges.tolist(),
+        'mean_sigma_crown': float(np.mean(sigma_crown)), 'mean_sigma_sidewall': float(np.mean(sigma_sidewall)),
+        'mean_sigma_cm': float(np.mean(sigma_cm)), 'mean_sigma_t': float(np.mean(sigma_t)),
+    }
+`;
+
+let pyodideReady = null;
+let pyRun = null;
+
+async function boot() {
+  const statusEl = document.getElementById('pyodide-status');
+  const btn = document.getElementById('run');
+  const note = document.getElementById('loading-note');
+  try {
+    note.textContent = 'fetching pyodide…';
+    const pyodide = await loadPyodide();
+    note.textContent = 'loading numpy…';
+    await pyodide.loadPackage(['numpy']);
+    pyodide.runPython(PY_ENGINE);
+    pyRun = pyodide.globals.get('run');
+    statusEl.textContent = 'python runtime ready';
+    statusEl.style.color = 'var(--safe)';
+    btn.disabled = false;
+    btn.textContent = 'Run Monte Carlo analysis';
+    note.textContent = '';
+  } catch (e) {
+    statusEl.textContent = 'runtime failed to load';
+    note.textContent = String(e);
+    console.error(e);
+  }
+}
+
+function val(id){ return parseFloat(document.getElementById(id).value); }
+
+function fmtPct(p){
+  if (p < 0.0001 && p > 0) return '<0.01%';
+  return (p*100).toFixed(2) + '%';
+}
+
+function drawSection(mean_crown, mean_side, sigma_cm, sigma_t){
+  const svg = document.getElementById('section-svg');
+  svg.innerHTML = '';
+  const ns = 'http://www.w3.org/2000/svg';
+  const cx=150, cy=150, rx=90, ry=60;
+
+  const bad = (s) => (s > sigma_cm) || (s < -sigma_t);
+  const crownColor = bad(mean_crown) ? 'var(--danger)' : 'var(--safe)';
+  const sideColor  = bad(mean_side)  ? 'var(--danger)' : 'var(--safe)';
+
+  function el(tag, attrs){
+    const e = document.createElementNS(ns, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    svg.appendChild(e);
+    return e;
+  }
+  el('rect', {x:0,y:0,width:300,height:300,fill:'none'});
+  // in-situ stress arrows (schematic)
+  el('line', {x1:150,y1:20,x2:150,y2:75,stroke:'#5a6069','stroke-width':1.4, 'marker-end':'url(#arrow)'});
+  el('line', {x1:20,y1:150,x2:45,y2:150,stroke:'#5a6069','stroke-width':1.4});
+  el('line', {x1:255,y1:150,x2:280,y2:150,stroke:'#5a6069','stroke-width':1.4});
+
+  el('ellipse', {cx, cy, rx, ry, fill:'none', stroke:'#6a7078', 'stroke-width':1.6});
+  el('ellipse', {cx, cy, rx:rx-1.5, ry:ry-1.5, fill:'none', stroke:crownColor, 'stroke-width':4,
+    'stroke-dasharray': `${Math.PI*(3*(rx-1.5)-Math.sqrt((3*(rx-1.5)+ (rx-1.5))*(3*(ry-1.5)+(ry-1.5))))} 999`,
+    transform:`rotate(0 ${cx} ${cy})`});
+  // simpler: colored arcs at crown (top) and sidewalls (left/right)
+  el('path', {d:`M ${cx-25} ${cy-ry+3} A ${rx} ${ry} 0 0 1 ${cx+25} ${cy-ry+3}`, fill:'none', stroke:crownColor, 'stroke-width':6, 'stroke-linecap':'round'});
+  el('path', {d:`M ${cx-rx+3} ${cy-22} A ${rx} ${ry} 0 0 1 ${cx-rx+3} ${cy+22}`, fill:'none', stroke:sideColor, 'stroke-width':6, 'stroke-linecap':'round'});
+  el('path', {d:`M ${cx+rx-3} ${cy-22} A ${rx} ${ry} 0 0 0 ${cx+rx-3} ${cy+22}`, fill:'none', stroke:sideColor, 'stroke-width':6, 'stroke-linecap':'round'});
+
+  el('text', {x:150, y:14, fill:'#9aa0a6', 'font-size':'9.5', 'text-anchor':'middle'}).textContent = 'σv';
+  el('text', {x:22, y:145, fill:'#9aa0a6', 'font-size':'9.5'}).textContent = 'σh';
+  el('text', {x:150, y:75, fill:'#e9e5da', 'font-size':'10', 'text-anchor':'middle'}).textContent = `crown ${mean_crown.toFixed(1)} MPa`;
+  el('text', {x:150, y:230, fill:'#e9e5da', 'font-size':'10', 'text-anchor':'middle'}).textContent = `sidewall ${mean_side.toFixed(1)} MPa`;
+  el('text', {x:150, y:250, fill:'#6a7078', 'font-size':'9.5', 'text-anchor':'middle'}).textContent = `σcm ${sigma_cm.toFixed(1)} MPa · σt ${sigma_t.toFixed(1)} MPa`;
+}
+
+function drawHistogram(counts, edges){
+  const canvas = document.getElementById('hist-canvas');
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  ctx.clearRect(0,0,W,H);
+  const pad = {l:36,r:12,t:10,b:26};
+  const plotW = W - pad.l - pad.r, plotH = H - pad.t - pad.b;
+  const maxC = Math.max(...counts);
+  const minE = edges[0], maxE = edges[edges.length-1];
+  const xScale = (v) => pad.l + (v - minE)/(maxE - minE) * plotW;
+  const barW = plotW / counts.length;
+
+  ctx.strokeStyle = '#33383f';
+  ctx.beginPath(); ctx.moveTo(pad.l, pad.t); ctx.lineTo(pad.l, H-pad.b); ctx.lineTo(W-pad.r, H-pad.b); ctx.stroke();
+
+  counts.forEach((c, i) => {
+    const x0 = edges[i], x1 = edges[i+1];
+    const barH = (c/maxC) * plotH;
+    const midpoint = (x0+x1)/2;
+    ctx.fillStyle = midpoint < 1.0 ? '#d0563a' : '#4fa98c';
+    ctx.fillRect(xScale(x0), H-pad.b-barH, Math.max(1,barW-1.5), barH);
+  });
+
+  // FoS = 1 marker
+  const xOne = xScale(1.0);
+  if (xOne >= pad.l && xOne <= W-pad.r) {
+    ctx.strokeStyle = '#e0b23a';
+    ctx.setLineDash([4,3]);
+    ctx.beginPath(); ctx.moveTo(xOne, pad.t); ctx.lineTo(xOne, H-pad.b); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = '#e0b23a';
+    ctx.font = '10px IBM Plex Mono';
+    ctx.fillText('FoS=1', xOne+4, pad.t+10);
+  }
+
+  ctx.fillStyle = '#9aa0a6';
+  ctx.font = '10px IBM Plex Mono';
+  ctx.fillText(minE.toFixed(2), pad.l, H-8);
+  ctx.fillText(maxE.toFixed(2), W-pad.r-30, H-8);
+}
+
+function setStat(id, betaId, pf, beta){
+  const el = document.getElementById(id);
+  el.textContent = fmtPct(pf);
+  el.className = 'v ' + (pf > 0.001 ? 'danger' : 'safe');
+  document.getElementById(betaId).textContent = 'β = ' + (Math.abs(beta) > 10 ? (beta>0?'>10':'<-10') : beta.toFixed(2));
+}
+
+async function runAnalysis(){
+  const btn = document.getElementById('run');
+  btn.disabled = true;
+  const prevText = btn.textContent;
+  btn.textContent = 'running…';
+
+  const params = {
+    H: val('H'), H_cov: val('H_cov'),
+    gamma: val('gamma'), gamma_cov: val('gamma_cov'),
+    k0: val('k0'), k0_cov: val('k0_cov'),
+    ucs: val('ucs'), ucs_cov: val('ucs_cov'),
+    gsi: val('gsi'), gsi_cov: val('gsi_cov'),
+    pi: val('pi'), pi_cov: val('pi_cov'),
+    freq: val('freq'),
+    nsamp: val('nsamp'),
+  };
+
+  await new Promise(r => setTimeout(r, 10)); // let UI paint
+  const pyParams = pyodide.toPy(params);
+  const resultProxy = pyRun(pyParams);
+  const result = resultProxy.toJs({dict_converter: Object.fromEntries});
+  resultProxy.destroy();
+
+  setStat('pf1','beta1', result.pf1, result.beta1);
+  setStat('pf2','beta2', result.pf2, result.beta2);
+  setStat('pf3','beta3', result.pf3, result.beta3);
+
+  drawSection(result.mean_sigma_crown, result.mean_sigma_sidewall, result.mean_sigma_cm, result.mean_sigma_t);
+  drawHistogram(result.hist_counts, result.hist_edges);
+
+  document.getElementById('table-body').innerHTML = `
+    <tr><td>Wall crushing / tension</td><td>Kirsch hoop stress vs. σcm (Hoek–Brown) / σt</td>
+        <td class="num">${result.fos1_mean.toFixed(2)}</td><td class="num">${result.fos1_sd.toFixed(2)}</td></tr>
+    <tr><td>Hydraulic jacking</td><td>min(σv, σh) / (F · Pi)</td>
+        <td class="num">${result.fos2_mean.toFixed(2)}</td><td class="num">${result.fos2_sd.toFixed(2)}</td></tr>
+  `;
+
+  btn.disabled = false;
+  btn.textContent = prevText;
+}
+
+let pyodide;
+(async () => {
+  const statusEl = document.getElementById('pyodide-status');
+  const btn = document.getElementById('run');
+  const note = document.getElementById('loading-note');
+  try {
+    note.textContent = 'fetching pyodide…';
+    pyodide = await loadPyodide();
+    note.textContent = 'loading numpy…';
+    await pyodide.loadPackage(['numpy']);
+    pyodide.runPython(PY_ENGINE);
+    pyRun = pyodide.globals.get('run');
+    statusEl.textContent = 'python runtime ready';
+    statusEl.style.color = 'var(--safe)';
+    btn.disabled = false;
+    btn.textContent = 'Run Monte Carlo analysis';
+    note.textContent = '';
+    btn.addEventListener('click', runAnalysis);
+  } catch (e) {
+    statusEl.textContent = 'runtime failed to load';
+    note.textContent = String(e);
+    console.error(e);
+  }
+})();
+</script>
+</body>
+</html>
